@@ -298,3 +298,18 @@ class DMS:
         :return: xxx
         '''
         pass
+        
+    '''
+    This is not working
+    def delete_all(self, file):
+        version = 1
+        key = ''.join(['v',str(version),'.',file])
+        # get lastest version
+
+        # Check file's version
+        while self.hbase_table.fetch(key) != None:
+            # loop version
+            self.delete(file,version)
+            version = version + 1
+            key = ''.join(['v',str(version),'.',file])
+    '''
