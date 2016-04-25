@@ -4,7 +4,7 @@ documents on Hadoop System (HDFS, HBASE).
 Author: lukkiddd
 Author Site: http://www.lukkid.in.th
 Github Page: https://github.com/lukkiddd/DMSHadoop
-Last Modified: 25 Apr, 03:50
+Last Modified: 25 Apr, 13:34
 '''
 import simplejson
 from urllib2 import *
