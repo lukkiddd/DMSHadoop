@@ -6,7 +6,8 @@ Author Site: http://www.lukkid.in.th
 Github Page: https://github.com/lukkiddd/DMSHadoop
 Last Modified: 25 Apr, 03:50
 '''
-import json
+import simplejson
+from urllib2 import *
 
 # GPL 2.0/LGPL 2.1
 from starbase import Connection as hbaseConnection
@@ -56,6 +57,15 @@ class DMS:
         '''
         self.hdfs = PyWebHdfsClient(host=host, port=port, user_name=user_name)
         self.hdfs_path = hdfs_path
+
+    def solr_connection(self, host, port, collection):
+        ''' This function use to establish a connection to solr, for query or
+        search any text on a system.
+        :param : host - solr's host
+        :param : port - solr's running port
+        :param : collection - solr's collection for searching
+        '''
+        self.solr = ''.join(['http://',host,':',port,'/solr/',collection])
 
     def extract(self, file):
         ''' This function use to extract meta data from a file. We use hachoir3 library
@@ -149,7 +159,7 @@ class DMS:
             print "[Uploaded]", file, "version:", version
         return True
 
-    def download(self, file, version=1, download_dir=''):
+    def download(self, file, version=None, download_dir=''):
         ''' This function use to retrieve or download file from hdfs. Then save
         it as a new file named (v[version].[file] - For example, v1.mytext.txt).
         You can specify the directory of downloaded file. You can also specify
@@ -160,6 +170,8 @@ class DMS:
                  NOTE: it must end with '/' - For example, '../download/')
         :return: True if success otherwise false.
         '''
+        if not version:
+            version = self.get_lastest_version(file)
         key = ''.join(['v',str(version),'.',file])
         path = ''.join([self.hdfs_path,key])
         downloaded_file = ''.join([download_dir,key])
@@ -177,15 +189,14 @@ class DMS:
 
     def update(self, file, version=None):
         ''' This function use to update file to hdfs and data stored in hbase by
-        overwrite that file on hdfs, and also insert new data to hbase too. You must
+        overwrite that file on hdfs, and also insert new data to hbase too. You can
         specify a file's version in order to update it.
         :param : file - file's name
         :param : version - file's version
         :return: True if success otherwise False.
         '''
         if not version:
-            print "You must specify file's version."
-            return False
+            version = self.get_lastest_version(file)
         key = ''.join(['v',str(version),'.',file])
         path = ''.join([self.hdfs_path,key])
 
@@ -241,15 +252,14 @@ class DMS:
         return True
 
     def delete(self, file, version=None):
-        ''' This function use to delete file in hbase, and hdfs. You must specify
+        ''' This function use to delete file in hbase, and hdfs. You can specify
         file's version in order to delete it.
         :param : file - file's name
         :param : version - file's version
         :return: True if succes otherwise False.
         '''
         if not version:
-            print "You must specify file's version."
-            return False
+            version = self.get_lastest_version(file)
         key = ''.join(['v',str(version),'.',file])
         path = ''.join([self.hdfs_path,key])
 
@@ -276,15 +286,14 @@ class DMS:
         return True
 
     def get_file_status(self, file, version=None):
-        ''' This function use to get all file's meta_data from hbase. You must
+        ''' This function use to get all file's meta_data from hbase. You can
         specify a file's version.
         :param : file - file's name
         :param : version - file's version
         :return: meta data as dict for success, 0 if fail
         '''
         if not version:
-            print "You must specify file's version."
-            return False
+            version = self.get_lastest_version(file)
         key = ''.join(['v',str(version),'.',file])
         if not self.hbase_table.fetch(key):
             if self.debug:
@@ -295,21 +304,75 @@ class DMS:
     def search(self, text):
         ''' This function will search in xxxx via solr rest api.
         :param : text - text for searching
-        :return: xxx
+        :return: json response from solr, False for not found.
         '''
-        pass
-        
-    '''
-    This is not working
-    def delete_all(self, file):
-        version = 1
-        key = ''.join(['v',str(version),'.',file])
-        # get lastest version
+        query = urlopen(''.join([self.solr,'/select?q=',text,'&wt=json']))
+        response = simplejson.load(query)
+        if response['response']['numFound'] == 0:
+            if self.debug:
+                print text,"not found!"
+            return False
+        return response
 
-        # Check file's version
-        while self.hbase_table.fetch(key) != None:
-            # loop version
-            self.delete(file,version)
-            version = version + 1
-            key = ''.join(['v',str(version),'.',file])
-    '''
+    def get_all_file(self):
+        ''' This function return all files that stored on Hbase in a list format.
+        :param : Nothing.
+        :return: fetch result as a list.
+        '''
+        rf = '{"type": "RowFilter", "op": "EQUAL", "comparator": {"type": "RegexStringComparator", "value": ""}}'
+        t = self.hbase_table
+        result = t.fetch_all_rows(with_row_id=True, filter_string=rf)
+        return list(result)
+
+    def get_file_version(self, file):
+        ''' This function will fetch data from file name then return them.
+        :param : file - file's name
+        :return: file_list with version as a dict.
+        '''
+        rf = ''.join(['{"type": "RowFilter", "op": "EQUAL", "comparator": {"type": "RegexStringComparator", "value": "',file,'"}}'])
+        t = self.hbase_table
+        result = t.fetch_all_rows(with_row_id=True, filter_string=rf)
+        lsr = list(result)
+        file_version = list()
+        for i in range(0,len(lsr)):
+            file_version.append(lsr[i].keys()[0].split('.')[0].split('v')[1])
+        file_list = dict()
+        file_list['name'] = file
+        file_list['version'] = file_version
+        return file_list
+
+    def get_lastest_version(self, file):
+        ''' This function will return a lastest version number as integer.
+        :param : file - file's name
+        :return: version number as an integer.
+        '''
+        file_version = self.get_file_version(file)
+        file_version['version'].sort()
+        return file_version['version'][len(file_version['version'])-1]
+
+    def delete_all_version(self, file):
+        ''' This function will delete all file's version in an hbase and HDFS
+        :param : file - file's name
+        :return: True if success otherwise False
+        '''
+        self.get_file_version(file)['version'].sort()
+        for version in self.get_file_version(file)['version']:
+            try:
+                self.delete(file,version)
+            except:
+                return False
+        return True
+
+    def delete_all(self):
+        ''' This function will delete all the files on an hbase and hdfs.
+        :param : Nothing
+        :return: True if success otherwise False
+        '''
+        for full_file in self.get_all_file():
+            file = full_file.keys()[0].split('.')[1]
+            version = full_file.keys()[0].split('.')[0].split('v')[1]
+            try:
+                self.delete(file,version)
+            except:
+                return False
+        return True
