@@ -14,8 +14,9 @@ if __name__ == "__main__":
     # dms.upload('example_picture.jpg')
     # dms.update('example_picture.jpg',1)
     # dms.download('example_picture.jpg',1)
-    # dms.delete('example_picture.jpg',2)
-    # print dms.get_file_status('example_picture.jpg')
+    # dms.delete('example_picture.jpg',1)
+    # print dms.get_file_meta_data('example_picture.jpg')
+    # print dms.get_file_content('example_picture.jpg')
 
     ''' Demo part for incomplete function in scope
     '''
