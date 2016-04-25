@@ -4,7 +4,7 @@ documents on Hadoop System (HDFS, HBASE).
 Author: lukkiddd
 Author Site: http://www.lukkid.in.th
 Github Page: https://github.com/lukkiddd/DMSHadoop
-Last Modified: 25 Apr, 13:34
+Last Modified: 25 Apr, 14:22
 '''
 import simplejson
 from urllib2 import *
@@ -42,7 +42,7 @@ class DMS:
         self.hbase = hbaseConnection(host=host, port=port)
         t = self.hbase.table(table)
         if (not t.exists()):
-            t.create('meta_data')
+            t.create('meta_data','file')
         self.hbase_table = t
 
     def hdfs_connection(self, host, port, user_name, hdfs_path='/tmp/'):
@@ -112,7 +112,7 @@ class DMS:
 
         # Check file's version
         while self.hbase_table.fetch(key) != None:
-            version = version + 1
+            version = int(self.get_lastest_version(file)) + 1
             key = ''.join(['v',str(version),'.',file])
             path = ''.join([self.hdfs_path,key])
 
@@ -122,6 +122,15 @@ class DMS:
             hdfs_meta = self.hdfs.get_file_dir_status(path)['FileStatus']
             file_meta = self.extract(file)
             t = self.hbase_table
+            status = t.insert(
+                key,
+                {
+                    'file': {'content': file_content}
+                }
+            )
+            if status != 200:
+                if self.debug:
+                    print "Error inserting: file content"
             # save hbase meta data
             for i in range(0,len(file_meta.keys())):
                 status = t.insert(
@@ -151,6 +160,9 @@ class DMS:
                     'meta_data': {'version': version}
                 }
             )
+            if status != 200:
+                if self.debug:
+                    print "Error inserting: version"
         except:
             if self.debug:
                 print "Upload failed."
@@ -213,7 +225,17 @@ class DMS:
             self.hdfs.create_file(path,file,overwrite=True)
             hdfs_meta = self.hdfs.get_file_dir_status(path)['FileStatus']
             file_meta = self.extract(file)
-            t = self.hbase_table
+            status = t.insert(
+                key,
+                {
+                    'file': {'content': file_content,
+                             'name': file}
+                }
+            )
+            if status != 200:
+                if self.debug:
+                    print "Error inserting: file content"
+
             # save hbase meta data
             for i in range(0,len(file_meta.keys())):
                 status = t.insert(
@@ -243,6 +265,9 @@ class DMS:
                     'meta_data': {'version': version}
                 }
             )
+            if status != 200:
+                if self.debug:
+                    print "Error inserting: version"
         except:
             if self.debug:
                 print "Update failed."
@@ -285,7 +310,7 @@ class DMS:
             print "[Deleted]", file, "version:", version
         return True
 
-    def get_file_status(self, file, version=None):
+    def get_file_meta_data(self, file, version=None):
         ''' This function use to get all file's meta_data from hbase. You can
         specify a file's version.
         :param : file - file's name
@@ -299,7 +324,23 @@ class DMS:
             if self.debug:
                 print key,"is not exists"
             return False
-        return self.hbase_table.fetch(key)
+        return self.hbase_table.fetch(key)['meta_data']
+
+    def get_file_content(self, file, version=None):
+        ''' This function use to get all file's content from hbase. You can
+        specify a file's version.
+        :param : file - file's name
+        :param : version - file's version
+        :return: meta data as dict for success, 0 if fail
+        '''
+        if not version:
+            version = self.get_lastest_version(file)
+        key = ''.join(['v',str(version),'.',file])
+        if not self.hbase_table.fetch(key):
+            if self.debug:
+                print key,"is not exists"
+            return False
+        return self.hbase_table.fetch(key)['file']
 
     def search(self, text):
         ''' This function will search in xxxx via solr rest api.
