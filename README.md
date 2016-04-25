@@ -12,6 +12,11 @@ Note: This project is a part of seminar of 3rd-year CPE at KMUTT student.
 + Retrieve or download
 + Update
 + Delete
++ Get all files
++ Get file's version
++ Get file's lastest version
++ Delete all file's version
++ Delete all files
 - Search (Working on)
 
 ### Require ###
