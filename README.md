@@ -1,3 +1,5 @@
+[![GPLv2](https://img.shields.io/badge/license-GPLv2-yellow.svg)]()
+
 # DMSHadoop
 Document Management System on Hadoop
 Note: This project is a part of seminar of 3rd-year CPE at KMUTT student.
